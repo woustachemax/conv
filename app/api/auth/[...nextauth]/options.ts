@@ -47,7 +47,7 @@ export const AuthOptions :  NextAuthOptions = {
         );
 
         if (!accountExists) {
-          await client.account!.create({
+          await client.account.create({
             data: {
               userId: existingUser.id,
               type: account!.type,
