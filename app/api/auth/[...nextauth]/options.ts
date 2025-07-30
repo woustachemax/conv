@@ -1,6 +1,9 @@
 import { NextAuthOptions } from "next-auth";
 import GoogleProvider from 'next-auth/providers/google'
 import Spotify from "next-auth/providers/spotify";
+import client from "@/lib/prisma";
+import { PrismaAdapter } from "@next-auth/prisma-adapter";
+
 
 export const AuthOptions :  NextAuthOptions = {
     providers: [
@@ -23,6 +26,7 @@ export const AuthOptions :  NextAuthOptions = {
             }
 
   })
-]
+],
+adapter: PrismaAdapter(client)
 
 }
