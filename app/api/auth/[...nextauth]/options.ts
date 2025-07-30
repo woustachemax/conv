@@ -3,7 +3,7 @@ import GoogleProvider from "next-auth/providers/google";
 import Spotify from "next-auth/providers/spotify";
 import client from "@/lib/prisma";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { Account } from "@prisma/client";
+// import { Account } from "@prisma/client"; this ist a thing lmao
 
 export const AuthOptions: NextAuthOptions = {
   providers: [
@@ -42,7 +42,7 @@ export const AuthOptions: NextAuthOptions = {
 
       if (existingUser) {
         const accountExists = existingUser.accounts.some(
-          (acc: Account) =>
+          (acc: any) =>
             acc.provider === account.provider &&
             acc.providerAccountId === account.providerAccountId
         );
