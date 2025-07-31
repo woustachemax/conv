@@ -41,7 +41,7 @@ export const AuthOptions: NextAuthOptions = {
 
       if (existingUser) {
         const accountExists = existingUser.accounts.some(
-          (acc: any) =>
+          (acc: { provider: string; providerAccountId: string }) =>
             acc.provider === account.provider &&
             acc.providerAccountId === account.providerAccountId
         );
