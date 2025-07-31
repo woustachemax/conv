@@ -3,7 +3,6 @@ import GoogleProvider from "next-auth/providers/google";
 import Spotify from "next-auth/providers/spotify";
 import client from "@/lib/prisma";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-// import { Account } from "@prisma/client"; this ist a thing lmao
 
 export const AuthOptions: NextAuthOptions = {
   providers: [
