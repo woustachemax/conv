@@ -2,6 +2,62 @@ import { getServerSession } from "next-auth";
 import { AuthOptions } from "@/app/api/auth/[...nextauth]/options";
 import client from "@/lib/prisma";
 
+interface YouTubeErrorDetail {
+  reason: string;
+  message: string;
+}
+
+interface YouTubeError {
+  code: number;
+  message: string;
+  errors: YouTubeErrorDetail[];
+}
+
+interface YouTubeErrorResponse {
+  error: YouTubeError;
+}
+
+interface YouTubeThumbnail {
+  url: string;
+  width: number;
+  height: number;
+}
+
+interface YouTubeThumbnails {
+  default?: YouTubeThumbnail;
+  medium?: YouTubeThumbnail;
+  high?: YouTubeThumbnail;
+}
+
+interface YouTubePlaylistSnippet {
+  title: string;
+  description: string;
+  publishedAt: string;
+  thumbnails?: YouTubeThumbnails;
+}
+
+interface YouTubePlaylistContentDetails {
+  itemCount: number;
+}
+
+interface YouTubePlaylistStatus {
+  privacyStatus: string;
+}
+
+interface YouTubePlaylistItem {
+  id: string;
+  snippet: YouTubePlaylistSnippet;
+  contentDetails: YouTubePlaylistContentDetails;
+  status?: YouTubePlaylistStatus;
+}
+
+interface YouTubePlaylistResponse {
+  items: YouTubePlaylistItem[];
+  pageInfo?: {
+    totalResults: number;
+  };
+}
+
 export async function GET() {
   try {
     const session = await getServerSession(AuthOptions);
@@ -110,12 +166,13 @@ export async function GET() {
       }
     );
 
-    const data = await youtubeResponse.json();
+    const data = await youtubeResponse.json() as YouTubePlaylistResponse | YouTubeErrorResponse;
     
     if (!youtubeResponse.ok) {
       if (youtubeResponse.status === 403) {
-        const isQuotaExceeded = data.error?.errors?.some((err: any) => err.reason === "quotaExceeded");
-        const isApiNotEnabled = data.error?.errors?.some((err: any) => err.reason === "accessNotConfigured");
+        const errorData = data as YouTubeErrorResponse;
+        const isQuotaExceeded = errorData.error?.errors?.some((err: YouTubeErrorDetail) => err.reason === "quotaExceeded");
+        const isApiNotEnabled = errorData.error?.errors?.some((err: YouTubeErrorDetail) => err.reason === "accessNotConfigured");
         
         if (isQuotaExceeded) {
           return Response.json({
@@ -136,10 +193,11 @@ export async function GET() {
         }
       }
 
-      return Response.json({ error: data.error }, { status: youtubeResponse.status });
+      return Response.json({ error: (data as YouTubeErrorResponse).error }, { status: youtubeResponse.status });
     }
 
-    const playlists = (data.items || []).map((playlist: any) => ({
+    const successData = data as YouTubePlaylistResponse;
+    const playlists = (successData.items || []).map((playlist: YouTubePlaylistItem) => ({
       id: playlist.id,
       name: playlist.snippet.title,
       description: playlist.snippet.description || "",
@@ -154,7 +212,7 @@ export async function GET() {
 
     return Response.json({
       playlists,
-      total: data.pageInfo?.totalResults || playlists.length,
+      total: successData.pageInfo?.totalResults || playlists.length,
       source: "youtube"
     });
 

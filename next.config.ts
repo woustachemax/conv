@@ -23,6 +23,12 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
+        hostname: 'image-cdn-fa.spotifycdn.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
         hostname: 'i.ytimg.com',
         port: '',
         pathname: '/**',

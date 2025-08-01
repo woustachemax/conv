@@ -1,5 +1,4 @@
 "use client"
-/* eslint-disable @next/next/no-img-element */
 
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
@@ -23,6 +22,32 @@ interface PlatformStatus {
   loading: boolean;
   error: string | null;
   connected: boolean;
+}
+
+interface SpotifyPlaylistResponse {
+  playlists: {
+    id: string;
+    name: string;
+    tracks: number;
+    image: string | null;
+    external_url: string;
+    description?: string;
+    created_at?: string;
+    privacy?: string;
+  }[];
+}
+
+interface YouTubePlaylistResponse {
+  playlists: {
+    id: string;
+    name: string;
+    tracks: number;
+    image: string | null;
+    external_url: string;
+    description?: string;
+    created_at?: string;
+    privacy?: string;
+  }[];
 }
 
 export default function Dashboard() {
@@ -80,8 +105,8 @@ export default function Dashboard() {
         return []
       }
       
-      const data = await res.json()
-      const spotifyPlaylists: Playlist[] = data.playlists.map((p: any) => ({
+      const data = await res.json() as SpotifyPlaylistResponse
+      const spotifyPlaylists: Playlist[] = data.playlists.map((p) => ({
         ...p,
         source: 'spotify' as const
       }))
@@ -106,8 +131,8 @@ export default function Dashboard() {
         return []
       }
       
-      const data = await res.json()
-      const youtubePlaylists: Playlist[] = data.playlists.map((p: any) => ({
+      const data = await res.json() as YouTubePlaylistResponse
+      const youtubePlaylists: Playlist[] = data.playlists.map((p) => ({
         ...p,
         source: 'youtube' as const
       }))
