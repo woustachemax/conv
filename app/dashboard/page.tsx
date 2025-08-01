@@ -177,8 +177,9 @@ export default function Dashboard() {
       }
 
       setConversionResult(data)
-    } catch (error: any) {
-      alert(error.message || 'Conversion failed')
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Conversion failed'
+      alert(errorMessage)
     } finally {
       setConverting(null)
     }

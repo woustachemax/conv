@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { AuthOptions } from '../auth/[...nextauth]/options'
+import client from '@/lib/prisma'
 
 interface Track {
   id?: string
@@ -17,6 +18,31 @@ interface PlaylistData {
   trackCount: number
   image?: string
   tracks: Track[]
+}
+
+interface SpotifyTrackItem {
+  track: {
+    name: string;
+    artists: { name: string }[];
+    duration_ms?: number;
+    id: string;
+  }
+}
+
+interface SpotifyPlaylistItem {
+  track: {
+    name: string;
+    artists: { name: string }[];
+    duration_ms?: number;
+    id: string;
+  } | null;
+}
+
+interface YouTubePlaylistItem {
+  snippet: {
+    title: string;
+    videoId?: string;
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -113,9 +139,7 @@ async function createSpotifyPlaylist(
   userEmail: string
 ): Promise<string | null> {
   try {
-    const { PrismaClient } = require('@prisma/client')
-    const prisma = new PrismaClient()
-
+    const prisma = client
     const account = await prisma.account.findFirst({
       where: {
         user: { email: userEmail },
@@ -164,7 +188,6 @@ async function createSpotifyPlaylist(
       })
     }
 
-    await prisma.$disconnect()
     return playlist.external_urls.spotify
   } catch (error) {
     console.error('Spotify playlist creation error:', error)
@@ -178,8 +201,7 @@ async function createYouTubePlaylist(
   userEmail: string
 ): Promise<string | null> {
   try {
-    const { PrismaClient } = require('@prisma/client')
-    const prisma = new PrismaClient()
+    const prisma = client
 
     const account = await prisma.account.findFirst({
       where: {
@@ -188,7 +210,9 @@ async function createYouTubePlaylist(
       }
     })
 
-    if (!account?.access_token) return null
+    if (!account?.access_token) {
+      return null
+    }
 
     const createResponse = await fetch('https://www.googleapis.com/youtube/v3/playlists?part=snippet,status', {
       method: 'POST',
@@ -210,6 +234,15 @@ async function createYouTubePlaylist(
     if (!createResponse.ok) {
       const errorText = await createResponse.text()
       console.error('YouTube playlist creation failed:', errorText)
+      
+      if (createResponse.status === 403) {
+        const errorData = JSON.parse(errorText)
+        if (errorData.error?.errors?.[0]?.reason === 'quotaExceeded') {
+          console.error('YouTube quota exceeded - Cannot create playlist')
+          return null
+        }
+      }
+      
       return null
     }
 
@@ -217,7 +250,7 @@ async function createYouTubePlaylist(
 
     for (const track of tracks.filter(t => t.platformId)) {
       try {
-        await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet', {
+        const addResponse = await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${account.access_token}`,
@@ -233,13 +266,25 @@ async function createYouTubePlaylist(
             }
           })
         })
+        
+        if (!addResponse.ok) {
+          const errorText = await addResponse.text()
+          if (addResponse.status === 403) {
+            const errorData = JSON.parse(errorText)
+            if (errorData.error?.errors?.[0]?.reason === 'quotaExceeded') {
+              console.error('YouTube quota exceeded - Stopping track addition')
+              break
+            }
+          }
+          console.error(`Failed to add track ${track.name}:`, errorText)
+        }
+        
         await new Promise(resolve => setTimeout(resolve, 100))
-      } catch (error) {
-        console.error(`Failed to add track ${track.name}:`, error)
+      } catch (trackError) {
+        console.error(`Failed to add track ${track.name}:`, trackError)
       }
     }
 
-    await prisma.$disconnect()
     return `https://music.youtube.com/playlist?list=${playlist.id}`
   } catch (error) {
     console.error('YouTube playlist creation error:', error)
@@ -307,7 +352,7 @@ async function extractSpotifyPlaylist(url: string): Promise<PlaylistData | null>
       if (!tracksResponse.ok) break
       const tracksData = await tracksResponse.json()
       
-      tracksData.items?.forEach((item: any) => {
+      tracksData.items?.forEach((item: SpotifyPlaylistItem) => {
         if (item.track && item.track.name) {
           tracks.push({
             name: item.track.name,
@@ -371,7 +416,7 @@ async function extractYouTubePlaylist(url: string): Promise<PlaylistData | null>
       if (!itemsResponse.ok) break
       const itemsData = await itemsResponse.json()
       
-      itemsData.items?.forEach((item: any) => {
+      itemsData.items?.forEach((item: YouTubePlaylistItem) => {
         const title = item.snippet?.title
         if (title && title !== 'Deleted video' && title !== 'Private video') {
           const parts = title.split(' - ')
@@ -439,8 +484,8 @@ async function convertTracks(tracks: Track[], targetPlatform: string): Promise<T
       const result = await searchTrackOnPlatform(searchQuery, targetPlatform)
       availability = result.found ? 'available' : 'unavailable'
       platformId = result.id
-    } catch (error) {
-      console.error(`Search error for "${searchQuery}":`, error)
+    } catch (searchError) {
+      console.error(`Search error for "${searchQuery}":`, searchError)
     }
     
     await new Promise(resolve => setTimeout(resolve, 100))
@@ -505,7 +550,8 @@ async function searchSpotifyTrack(query: string): Promise<{found: boolean, id?: 
       found: !!track,
       id: track?.id
     }
-  } catch (error) {
+  } catch (spotifyError) {
+    console.error('Spotify search error:', spotifyError)
     return {found: false}
   }
 }
@@ -527,7 +573,15 @@ async function searchYouTubeTrack(query: string): Promise<{found: boolean, id?: 
     console.log(`yt api res: ${searchResponse.status}`)
     if (!searchResponse.ok) {
       const errorText = await searchResponse.text()
-      console.log(`yt api err: ${errorText}`) 
+      console.log(`yt api err: ${errorText}`)
+      
+      if (searchResponse.status === 403) {
+        const errorData = JSON.parse(errorText)
+        if (errorData.error?.errors?.[0]?.reason === 'quotaExceeded') {
+          console.log('YouTube quota exceeded - marking as unavailable')
+          return {found: false}
+        }
+      }
       return {found: false}
     }
 
@@ -539,8 +593,8 @@ async function searchYouTubeTrack(query: string): Promise<{found: boolean, id?: 
       found: !!video,
       id: video?.id?.videoId
     }
-  } catch (error) {
-    console.log(`yt search err: ${error}`) 
+  } catch (youtubeError) {
+    console.log(`yt search err: ${youtubeError}`) 
     return {found: false}
   }
 }
@@ -565,7 +619,8 @@ async function searchAppleTrack(query: string): Promise<{found: boolean, id?: st
       found: !!track,
       id: track?.trackId?.toString()
     }
-  } catch (error) {
+  } catch (appleError) {
+    console.error('Apple search error:', appleError)
     return {found: false}
   }
 }

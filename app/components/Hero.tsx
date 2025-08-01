@@ -76,8 +76,9 @@ export const Hero = () => {
       }
 
       setResult(data)
-    } catch (err: any) {
-      setError(err.message || 'An error occurred during conversion')
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred during conversion'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -135,8 +136,9 @@ export const Hero = () => {
       if (data.createdPlaylistUrl) {
         window.open(data.createdPlaylistUrl, '_blank')
       }
-    } catch (error: any) {
-      alert(error.message || 'Playlist creation failed')
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Playlist creation failed'
+      alert(errorMessage)
     }
   }
 
