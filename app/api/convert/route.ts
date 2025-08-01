@@ -45,6 +45,31 @@ interface YouTubePlaylistItem {
   };
 }
 
+interface SpotifySearchResponse {
+  tracks: {
+    items: SpotifyTrack[];
+  };
+}
+
+interface SpotifyTrack {
+  id: string;
+  name: string;
+  artists: { name: string }[];
+}
+
+interface YouTubeSearchResponse {
+  items: YouTubeVideo[];
+}
+
+interface YouTubeVideo {
+  id: {
+    videoId: string;
+  };
+  snippet: {
+    title: string;
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { url, targetPlatform, createPlaylist } = await request.json()
@@ -419,12 +444,10 @@ async function extractYouTubePlaylist(url: string): Promise<PlaylistData | null>
       itemsData.items?.forEach((item: YouTubePlaylistItem) => {
         const title = item.snippet?.title
         if (title && title !== 'Deleted video' && title !== 'Private video') {
-          const parts = title.split(' - ')
-          const artist = parts.length > 1 ? parts[0] : 'Unknown Artist'
-          const song = parts.length > 1 ? parts.slice(1).join(' - ') : title
+          const { artist, name } = parseYouTubeTitle(title)
           
           tracks.push({
-            name: song,
+            name: name,
             artist: artist
           })
         }
@@ -443,6 +466,33 @@ async function extractYouTubePlaylist(url: string): Promise<PlaylistData | null>
   } catch (error) {
     console.error('YouTube extraction error:', error)
     return null
+  }
+}
+
+function parseYouTubeTitle(title: string): { artist: string; name: string } {
+  const separators = [' - ', ' – ', ' — ', ' | ', ': ', ' by ']
+  
+  for (const separator of separators) {
+    if (title.includes(separator)) {
+      const parts = title.split(separator)
+      if (parts.length >= 2) {
+        return {
+          artist: parts[0].trim(),
+          name: parts.slice(1).join(separator).trim()
+        }
+      }
+    }
+  }
+
+  const cleanTitle = title
+    .replace(/\s*\(.*?\)/g, '')
+    .replace(/\s*\[.*?\]/g, '')
+    .replace(/\s*(official|music|video|lyric|audio|hd|4k|mv|live|acoustic|cover|remix)\s*(video|audio|version)?.*$/i, '')
+    .trim()
+
+  return {
+    artist: 'Unknown Artist',
+    name: cleanTitle || title
   }
 }
 
@@ -476,7 +526,14 @@ async function convertTracks(tracks: Track[], targetPlatform: string): Promise<T
   const convertedTracks: Track[] = []
   
   for (const track of tracks) {
-    const searchQuery = `${track.artist} ${track.name}`.trim()
+    let searchQuery: string
+    
+    if (track.artist === 'Unknown Artist') {
+      searchQuery = track.name.trim()
+    } else {
+      searchQuery = `${track.artist} ${track.name}`.trim()
+    }
+    
     let availability: 'available' | 'unavailable' | 'partial' = 'unavailable'
     let platformId: string | undefined
     
@@ -533,7 +590,7 @@ async function searchSpotifyTrack(query: string): Promise<{found: boolean, id?: 
     const searchResponse = await fetch(
       `https://api.spotify.com/v1/search?` + 
       new URLSearchParams({
-        q: query,
+        q: query.trim(),
         type: 'track',
         limit: '1'
       }),
@@ -543,7 +600,7 @@ async function searchSpotifyTrack(query: string): Promise<{found: boolean, id?: 
     )
 
     if (!searchResponse.ok) return {found: false}
-    const searchData = await searchResponse.json()
+    const searchData: SpotifySearchResponse = await searchResponse.json()
     
     const track = searchData.tracks?.items?.[0]
     return {
@@ -557,13 +614,23 @@ async function searchSpotifyTrack(query: string): Promise<{found: boolean, id?: 
 }
 
 async function searchYouTubeTrack(query: string): Promise<{found: boolean, id?: string}> {
+  if (process.env.YOUTUBE_MOCK_MODE === 'true') {
+    console.log(`MOCK: yt search query: "${query}"`)
+    const mockFound = Math.random() > 0.2
+    return {
+      found: mockFound,
+      id: mockFound ? `mock_video_${Math.random().toString(36).substr(2, 9)}` : undefined
+    }
+  }
+
   try {
     console.log(`yt search query: "${query}"`)
+    
     const searchResponse = await fetch(
       `https://www.googleapis.com/youtube/v3/search?` +
       new URLSearchParams({
         part: 'snippet',
-        q: query + ' music',
+        q: query.trim(),
         type: 'video',
         maxResults: '1',
         key: process.env.YOUTUBE_API_KEY!
@@ -575,7 +642,7 @@ async function searchYouTubeTrack(query: string): Promise<{found: boolean, id?: 
       const errorText = await searchResponse.text()
       console.log(`yt api err: ${errorText}`)
       
-      if (searchResponse.status === 403) {
+      if (searchResponse.status === 403 || searchResponse.status === 429) {
         const errorData = JSON.parse(errorText)
         if (errorData.error?.errors?.[0]?.reason === 'quotaExceeded') {
           console.log('YouTube quota exceeded - marking as unavailable')
@@ -585,7 +652,7 @@ async function searchYouTubeTrack(query: string): Promise<{found: boolean, id?: 
       return {found: false}
     }
 
-    const searchData = await searchResponse.json()
+    const searchData: YouTubeSearchResponse = await searchResponse.json()
     console.log(`yt res count: ${searchData.items?.length || 0}`)
     
     const video = searchData.items?.[0]
