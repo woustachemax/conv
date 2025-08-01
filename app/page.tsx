@@ -29,7 +29,7 @@ export default async function Home() {
       
       <footer className="relative z-10 text-white/60 text-center py-8 mt-auto">
         <p>
-          Made with ❤️ by{' '}
+          Made with 🤍 by{' '}
           <a 
             href="https://siddharththakkar.xyz" 
             target="_blank" 
