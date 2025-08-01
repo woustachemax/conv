@@ -2,12 +2,49 @@ import { getServerSession } from "next-auth";
 import { AuthOptions } from "@/app/api/auth/[...nextauth]/options";
 import client from "@/lib/prisma";
 
+interface SpotifyImage {
+  url: string;
+  height: number;
+  width: number;
+}
+
+interface SpotifyTracks {
+  total: number;
+}
+
+interface SpotifyPlaylistItem {
+  id: string;
+  name: string;
+  tracks: SpotifyTracks;
+  images: SpotifyImage[];
+  external_urls: {
+    spotify: string;
+  };
+}
+
+interface SpotifyPlaylistResponse {
+  items: SpotifyPlaylistItem[];
+}
+
+interface SpotifyTokenResponse {
+  access_token: string;
+  expires_in: number;
+  refresh_token?: string;
+}
+
+interface SpotifyErrorResponse {
+  error: {
+    status: number;
+    message: string;
+  };
+}
+
 export async function GET() {
   try {
     const session = await getServerSession(AuthOptions);
 
-    if (!session || !session.user?.email) {
-      return new Response("Unauthorized", { status: 401 });
+    if (!session?.user?.email) {
+      return Response.json({ error: { message: "Unauthorized" } }, { status: 401 });
     }
 
     const user = await client.user.findUnique({
@@ -16,148 +53,106 @@ export async function GET() {
     });
 
     if (!user) {
-      return new Response("User not found", { status: 404 });
+      return Response.json({ error: { message: "User not found" } }, { status: 404 });
     }
 
-    const spotifyAccount = user.accounts.find(
-      (acc) => acc.provider === "spotify"
-    );
+    const spotifyAccount = user.accounts.find(acc => acc.provider === "spotify");
 
     if (!spotifyAccount?.access_token) {
-      console.error("Spotify account not found for user");
-      return new Response(
-        JSON.stringify({ 
-          error: { 
-            message: "No Spotify account linked. Please connect your Spotify account.",
-            action: "CONNECT_SPOTIFY"
-          } 
-        }), 
-        { 
-          status: 400,
-          headers: { "Content-Type": "application/json" }
+      return Response.json({
+        error: {
+          message: "No Spotify account linked. Please connect your Spotify account.",
+          action: "CONNECT_SPOTIFY"
         }
-      );
+      }, { status: 400 });
     }
 
     const now = Math.floor(Date.now() / 1000);
+    let accessToken = spotifyAccount.access_token;
+
     if (spotifyAccount.expires_at && spotifyAccount.expires_at < now) {
-      console.error("Spotify token expired for user");
-      
-      if (spotifyAccount.refresh_token) {
-        try {
-          const refreshResponse = await fetch("https://accounts.spotify.com/api/token", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-              "Authorization": `Basic ${Buffer.from(
-                `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
-              ).toString("base64")}`,
-            },
-            body: new URLSearchParams({
-              grant_type: "refresh_token",
-              refresh_token: spotifyAccount.refresh_token,
-            }),
-          });
-
-          if (refreshResponse.ok) {
-            const refreshData = await refreshResponse.json();
-            
-            await client.account.update({
-              where: {
-                provider_providerAccountId: {
-                  provider: "spotify",
-                  providerAccountId: spotifyAccount.providerAccountId,
-                },
-              },
-              data: {
-                access_token: refreshData.access_token,
-                expires_at: Math.floor(Date.now() / 1000) + refreshData.expires_in,
-                refresh_token: refreshData.refresh_token || spotifyAccount.refresh_token,
-              },
-            });
-
-            const res = await fetch("https://api.spotify.com/v1/me/playlists", {
-              headers: {
-                Authorization: `Bearer ${refreshData.access_token}`,
-              },
-            });
-
-            const json = await res.json();
-            if (!res.ok) {
-              console.error("Spotify API error after token refresh:", res.status);
-              return new Response(JSON.stringify({ error: json.error }), {
-                status: res.status,
-                headers: { "Content-Type": "application/json" },
-              });
-            }
-
-            const playlists = (json.items || []).map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              tracks: p.tracks.total,
-              image: p.images?.[0]?.url ?? null,
-              external_url: p.external_urls?.spotify,
-            }));
-
-            return new Response(JSON.stringify({ playlists }), {
-              status: 200,
-              headers: { "Content-Type": "application/json" },
-            });
-          }
-        } catch (refreshError) {
-          console.error("Token refresh failed:", refreshError);
-        }
-      }
-
-      return new Response(
-        JSON.stringify({ 
-          error: { 
+      if (!spotifyAccount.refresh_token) {
+        return Response.json({
+          error: {
             message: "Spotify token expired. Please reconnect your Spotify account.",
             action: "RECONNECT_SPOTIFY"
-          } 
-        }), 
-        { 
-          status: 401,
-          headers: { "Content-Type": "application/json" }
+          }
+        }, { status: 401 });
+      }
+
+      try {
+        const refreshResponse = await fetch("https://accounts.spotify.com/api/token", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Authorization": `Basic ${Buffer.from(
+              `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
+            ).toString("base64")}`,
+          },
+          body: new URLSearchParams({
+            grant_type: "refresh_token",
+            refresh_token: spotifyAccount.refresh_token,
+          }),
+        });
+
+        if (!refreshResponse.ok) {
+          throw new Error("Token refresh failed");
         }
-      );
+
+        const refreshData = await refreshResponse.json() as SpotifyTokenResponse;
+
+        await client.account.update({
+          where: {
+            provider_providerAccountId: {
+              provider: "spotify",
+              providerAccountId: spotifyAccount.providerAccountId,
+            },
+          },
+          data: {
+            access_token: refreshData.access_token,
+            expires_at: Math.floor(Date.now() / 1000) + refreshData.expires_in,
+            refresh_token: refreshData.refresh_token || spotifyAccount.refresh_token,
+          },
+        });
+
+        accessToken = refreshData.access_token;
+      } catch {
+        return Response.json({
+          error: {
+            message: "Failed to refresh token. Please reconnect your Spotify account.",
+            action: "RECONNECT_SPOTIFY"
+          }
+        }, { status: 401 });
+      }
     }
 
-    const res = await fetch("https://api.spotify.com/v1/me/playlists", {
-      headers: {
-        Authorization: `Bearer ${spotifyAccount.access_token}`,
-      },
+    const spotifyResponse = await fetch("https://api.spotify.com/v1/me/playlists", {
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
 
-    const json = await res.json();
-    if (!res.ok) {
-      console.error("Spotify API error:", res.status);
-      return new Response(JSON.stringify({ error: json.error }), {
-        status: res.status,
-        headers: { "Content-Type": "application/json" },
-      });
+    const data = await spotifyResponse.json() as SpotifyPlaylistResponse | SpotifyErrorResponse;
+
+    if (!spotifyResponse.ok) {
+      const errorData = data as SpotifyErrorResponse;
+      return Response.json({ error: errorData.error }, { status: spotifyResponse.status });
     }
 
-    const playlists = (json.items || []).map((p: any) => ({
-      id: p.id,
-      name: p.name,
-      tracks: p.tracks.total,
-      image: p.images?.[0]?.url ?? null,
-      external_url: p.external_urls?.spotify,
+    const successData = data as SpotifyPlaylistResponse;
+    const playlists = (successData.items || []).map((playlist: SpotifyPlaylistItem) => ({
+      id: playlist.id,
+      name: playlist.name,
+      tracks: playlist.tracks.total,
+      image: playlist.images?.[0]?.url || null,
+      external_url: playlist.external_urls.spotify,
     }));
 
-    return new Response(JSON.stringify({ playlists }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return Response.json({ playlists });
+
   } catch (error) {
-    console.error("Unexpected error in Spotify API:", error);
-    return new Response(
-      JSON.stringify({ error: { message: "Internal server error" } }), 
-      { 
-        status: 500,
-        headers: { "Content-Type": "application/json" }
-      }
+    console.error("Spotify API error:", error);
+    return Response.json(
+      { error: { message: "Internal server error" } },
+      { status: 500 }
     );
   }
 }

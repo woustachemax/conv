@@ -31,7 +31,7 @@ export const AuthOptions: NextAuthOptions = {
     strategy: "database",
   },
   callbacks: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account }) {
       console.log("SignIn callback:", { 
         userEmail: user.email, 
         provider: account?.provider,

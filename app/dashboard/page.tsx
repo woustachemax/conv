@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
@@ -51,26 +51,13 @@ interface YouTubePlaylistResponse {
 }
 
 export default function Dashboard() {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const router = useRouter()
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [spotify, setSpotify] = useState<PlatformStatus>({ loading: false, error: null, connected: false })
   const [youtube, setYoutube] = useState<PlatformStatus>({ loading: false, error: null, connected: false })
 
-  useEffect(() => {
-    if (status === "loading") return
-
-    if (status === "unauthenticated") {
-      router.push("/")
-      return
-    }
-
-    if (status === "authenticated") {
-      fetchAllPlaylists()
-    }
-  }, [status, router])
-
-  const fetchAllPlaylists = async () => {
+  const fetchAllPlaylists = useCallback(async () => {
     setPlaylists([])
     setSpotify({ loading: true, error: null, connected: false })
     setYoutube({ loading: true, error: null, connected: false })
@@ -92,7 +79,20 @@ export default function Dashboard() {
 
     allPlaylists.sort((a, b) => a.name.localeCompare(b.name))
     setPlaylists(allPlaylists)
-  }
+  }, [])
+
+  useEffect(() => {
+    if (status === "loading") return
+
+    if (status === "unauthenticated") {
+      router.push("/")
+      return
+    }
+
+    if (status === "authenticated") {
+      fetchAllPlaylists()
+    }
+  }, [status, router, fetchAllPlaylists])
 
   const fetchSpotifyPlaylists = async (): Promise<Playlist[]> => {
     try {
