@@ -174,9 +174,6 @@ We recommend using [Neon](https://neon.tech) for a free PostgreSQL database:
 6. Push to the branch (`git push origin feature/amazing-feature`)
 7. Open a Pull Request
 
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
@@ -190,5 +187,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **Made with 🤍 by [Siddharth Thakkar](https://siddharththakkar.xyz)**
-
-⭐ Star this repo if you found it helpful!
