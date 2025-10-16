@@ -13,8 +13,6 @@ interface Playlist {
   external_url: string;
   source: 'spotify' | 'youtube';
   description?: string;
-  created_at?: string;
-  privacy?: string;
 }
 
 interface PlatformStatus {
@@ -41,32 +39,7 @@ interface ConversionResult {
   tracks: Track[]
   targetPlatform: string
   matchRate: number
-}
-
-interface SpotifyPlaylistResponse {
-  playlists: {
-    id: string;
-    name: string;
-    tracks: number;
-    image: string | null;
-    external_url: string;
-    description?: string;
-    created_at?: string;
-    privacy?: string;
-  }[];
-}
-
-interface YouTubePlaylistResponse {
-  playlists: {
-    id: string;
-    name: string;
-    tracks: number;
-    image: string | null;
-    external_url: string;
-    description?: string;
-    created_at?: string;
-    privacy?: string;
-  }[];
+  createdPlaylistUrl?: string | null
 }
 
 export default function Dashboard() {
@@ -113,8 +86,8 @@ export default function Dashboard() {
         return []
       }
       
-      const data = await res.json() as SpotifyPlaylistResponse
-      const spotifyPlaylists: Playlist[] = data.playlists.map((p) => ({
+      const data = await res.json()
+      const spotifyPlaylists: Playlist[] = data.playlists.map((p: any) => ({
         ...p,
         source: 'spotify' as const
       }))
@@ -139,8 +112,8 @@ export default function Dashboard() {
         return []
       }
       
-      const data = await res.json() as YouTubePlaylistResponse
-      const youtubePlaylists: Playlist[] = data.playlists.map((p) => ({
+      const data = await res.json()
+      const youtubePlaylists: Playlist[] = data.playlists.map((p: any) => ({
         ...p,
         source: 'youtube' as const
       }))
@@ -199,14 +172,6 @@ export default function Dashboard() {
     )
   }
 
-  const getPlatformName = (platform: string) => {
-    switch (platform) {
-      case 'spotify': return 'Spotify'
-      case 'youtube': return 'YouTube Music'
-      default: return platform
-    }
-  }
-
   const truncateText = (text: string, maxLength: number) => {
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
   }
@@ -228,7 +193,7 @@ export default function Dashboard() {
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-zinc-800 to-slate-900 relative overflow-hidden flex items-center justify-center">
+      <div className="min-h-screen bg-black relative overflow-hidden flex items-center justify-center">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]"></div>
         <div className="text-white text-xl relative z-10">Loading...</div>
       </div>
@@ -241,12 +206,12 @@ export default function Dashboard() {
 
   if (conversionResult) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-zinc-800 to-slate-900 relative overflow-hidden">
+      <div className="min-h-screen bg-black relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]"></div>
         <div className="relative z-10 p-4 sm:p-8">
           <div className="max-w-4xl mx-auto">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 gap-4">
-              <h2 className="text-2xl sm:text-3xl font-bold text-white">Conversion Complete! 🎉</h2>
+              <h2 className="text-2xl sm:text-3xl font-bold text-white">Conversion Complete!</h2>
               <button
                 onClick={() => setConversionResult(null)}
                 className="text-white/60 hover:text-white transition-colors text-sm sm:text-base"
@@ -260,7 +225,7 @@ export default function Dashboard() {
                 <div className="text-left">
                   <h3 className="text-lg sm:text-xl font-semibold text-white mb-2">{conversionResult.originalPlaylist.name}</h3>
                   <p className="text-sm text-green-400">
-                    {getPlatformName(conversionResult.originalPlaylist.platform)} → {getPlatformName(conversionResult.targetPlatform)}
+                    {conversionResult.originalPlaylist.platform} → {conversionResult.targetPlatform}
                   </p>
                   <p className="text-sm text-white/60">{conversionResult.originalPlaylist.trackCount} tracks</p>
                 </div>
@@ -300,7 +265,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-zinc-800 to-slate-900 relative overflow-hidden">
+    <div className="min-h-screen bg-black relative overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]"></div>
       <div className="absolute inset-0">
         <div className="absolute inset-y-0 left-0 h-full w-px bg-slate-100/5"/>
@@ -309,8 +274,7 @@ export default function Dashboard() {
       
       <div className="relative z-10 p-4 sm:p-8">
         <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 gap-4">
-            <h1 className="text-2xl sm:text-4xl font-bold text-white">Your Music Library</h1>
+          <div className="flex flex-col sm:flex-row justify-end items-start sm:items-center mb-6 sm:mb-8 gap-4">
             <Logout />
           </div>
 

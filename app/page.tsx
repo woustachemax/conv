@@ -13,7 +13,7 @@ export default async function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-zinc-800 to-slate-900 relative overflow-hidden">
+    <div className="min-h-screen bg-black relative overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]"></div>
       <div className="absolute inset-0">
         <div className="absolute inset-y-0 left-0 h-full w-px bg-slate-100/5"/>
