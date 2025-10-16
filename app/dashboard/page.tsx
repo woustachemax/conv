@@ -87,7 +87,7 @@ export default function Dashboard() {
       }
       
       const data = await res.json()
-      const spotifyPlaylists: Playlist[] = data.playlists.map((p: any) => ({
+      const spotifyPlaylists: Playlist[] = data.playlists.map((p: String[]) => ({
         ...p,
         source: 'spotify' as const
       }))
@@ -113,7 +113,7 @@ export default function Dashboard() {
       }
       
       const data = await res.json()
-      const youtubePlaylists: Playlist[] = data.playlists.map((p: any) => ({
+      const youtubePlaylists: Playlist[] = data.playlists.map((p: String[]) => ({
         ...p,
         source: 'youtube' as const
       }))

@@ -2,18 +2,21 @@
 import React from "react"
 import Link from "next/link"
 import { signIn } from "next-auth/react"
+import Image from "next/image"
 
 export const Navbar = () => {
   return (
     <div className="flex items-center justify-between py-6 px-4 w-full">
       <Link href="/">
-        <img
-          src="/logo.svg"
-          alt="Logo"
-          className="w-48 h-auto md:w-48 sm:w-36"
-          loading="lazy"
-          draggable="false"
-        />
+     <Image 
+        src="/logo.svg"
+        alt="Logo"
+        width={192}
+        height={48}
+        className="w-48 h-auto md:w-48 sm:w-36"
+        priority
+        draggable={false}
+      />
       </Link>
 
       <div className="flex gap-2 md:gap-4">

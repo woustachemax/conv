@@ -20,15 +20,6 @@ interface PlaylistData {
   tracks: Track[]
 }
 
-interface SpotifyTrackItem {
-  track: {
-    name: string;
-    artists: { name: string }[];
-    duration_ms?: number;
-    id: string;
-  }
-}
-
 interface SpotifyPlaylistItem {
   track: {
     name: string;
