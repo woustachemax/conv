@@ -13,21 +13,20 @@ export default async function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-black relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]"></div>
+    <div className="custom-bg-container overflow-y-auto min-h-screen scrollbar-hide">
       <div className="absolute inset-0">
         <div className="absolute inset-y-0 left-0 h-full w-px bg-slate-100/5"/>
         <div className="absolute inset-y-0 right-0 h-full w-px bg-slate-100/5"/>
       </div>
       
       <div className="relative z-10">
-        <Container>
+        <Container className="">
           <Navbar/>
           <Hero/>
         </Container>
       </div>
       
-      <footer className="relative z-10 text-white/60 text-center py-8 mt-auto">
+      {/* <footer className="relative z-10 text-white/60 text-center py-8">
         <p>
           Made with 🤍 by{' '}
           <a 
@@ -39,7 +38,7 @@ export default async function Home() {
             Siddharth
           </a>
         </p>
-      </footer>
+      </footer> */}
     </div>
   )
 }

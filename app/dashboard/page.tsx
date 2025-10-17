@@ -87,7 +87,7 @@ export default function Dashboard() {
       }
       
       const data = await res.json()
-      const spotifyPlaylists: Playlist[] = data.playlists.map((p: string[]) => ({
+      const spotifyPlaylists: Playlist[] = data.playlists.map((p: Playlist) => ({
         ...p,
         source: 'spotify' as const
       }))
@@ -113,7 +113,7 @@ export default function Dashboard() {
       }
       
       const data = await res.json()
-      const youtubePlaylists: Playlist[] = data.playlists.map((p: string[]) => ({
+      const youtubePlaylists: Playlist[] = data.playlists.map((p: Playlist) => ({
         ...p,
         source: 'youtube' as const
       }))
@@ -138,6 +138,35 @@ export default function Dashboard() {
         body: JSON.stringify({
           url: playlist.external_url,
           targetPlatform,
+          createPlaylist: true
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'Conversion failed')
+      }
+
+      setConversionResult(data)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Conversion failed'
+      alert(errorMessage)
+    } finally {
+      setConverting(null)
+    }
+  }
+
+  const handleAutoConvert = async (url: string, targetPlatform: string) => {
+    setConverting('auto')
+
+    try {
+      const response = await fetch('/api/convert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: url,
+          targetPlatform: targetPlatform,
           createPlaylist: true
         })
       })
@@ -186,6 +215,17 @@ export default function Dashboard() {
 
     if (status === "authenticated") {
       fetchAllPlaylists()
+      
+      const pendingConversion = sessionStorage.getItem('pendingConversion')
+      if (pendingConversion) {
+        try {
+          const conversionData = JSON.parse(pendingConversion)
+          sessionStorage.removeItem('pendingConversion')
+          handleAutoConvert(conversionData.url, conversionData.targetPlatform)
+        } catch (error) {
+          console.error('Failed to process pending conversion:', error)
+        }
+      }
     }
   }, [status, router, fetchAllPlaylists])
 
@@ -193,8 +233,7 @@ export default function Dashboard() {
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen bg-black relative overflow-hidden flex items-center justify-center">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]"></div>
+      <div className="custom-bg-container overflow-hidden flex items-center justify-center">
         <div className="text-white text-xl relative z-10">Loading...</div>
       </div>
     )
@@ -206,8 +245,7 @@ export default function Dashboard() {
 
   if (conversionResult) {
     return (
-      <div className="min-h-screen bg-black relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]"></div>
+      <div className="custom-bg-container overflow-y-auto min-h-screen scrollbar-hide">
         <div className="relative z-10 p-4 sm:p-8">
           <div className="max-w-4xl mx-auto">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 gap-4">
@@ -235,7 +273,7 @@ export default function Dashboard() {
                 </div>
               </div>
               
-              <div className="max-h-96 overflow-y-auto space-y-2">
+              <div className="max-h-96 overflow-y-auto space-y-2 scrollbar-hide">
                 {conversionResult.tracks.map((track, index) => (
                   <div 
                     key={track.id || index}
@@ -257,6 +295,20 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
+              
+              {conversionResult.createdPlaylistUrl && (
+                <div className="mt-6 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+                  <p className="text-green-400 text-sm mb-2">Playlist created successfully!</p>
+                  <a 
+                    href={conversionResult.createdPlaylistUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 text-sm underline"
+                  >
+                    Open in {conversionResult.targetPlatform === 'spotify' ? 'Spotify' : 'YouTube Music'}
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -265,8 +317,8 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-black relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]"></div>
+    <div className=" custom-bg-container overflow-y-auto min-h-screen scrollbar-hide">
+      {/* <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]"></div> */}
       <div className="absolute inset-0">
         <div className="absolute inset-y-0 left-0 h-full w-px bg-slate-100/5"/>
         <div className="absolute inset-y-0 right-0 h-full w-px bg-slate-100/5"/>

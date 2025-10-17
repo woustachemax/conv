@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { signIn, useSession } from 'next-auth/react'
 
 interface Track {
@@ -30,6 +30,8 @@ export const Hero = () => {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ConversionResult | null>(null)
   const [error, setError] = useState('')
+  const [isRedirecting, setIsRedirecting] = useState(false)
+
 
   const detectPlatform = (url: string): string | null => {
     if (url.includes('open.spotify.com/playlist/')) return 'spotify'
@@ -37,6 +39,16 @@ export const Hero = () => {
     if (url.includes('music.apple.com/')) return 'apple'
     return null
   }
+
+  useEffect(() => {
+  if (typeof window !== 'undefined') {
+    const pending = sessionStorage.getItem('pendingConversion')
+    if (pending) {
+      setIsRedirecting(true)
+    }
+  }
+  }, [])
+
 
   const handleConvert = async () => {
     if (!url.trim()) {
@@ -104,12 +116,20 @@ export const Hero = () => {
 
   const handleCreatePlaylist = async () => {
     if (!session) {
+      if (result) {
+        sessionStorage.setItem('pendingConversion', JSON.stringify({
+          url: url.trim(),
+          targetPlatform: result.targetPlatform,
+          playlistName: result.originalPlaylist.name
+        }))
+      }
+      
       if (result?.targetPlatform === 'youtube') {
-        signIn('google')
+        signIn('google', { callbackUrl: '/dashboard' })
       } else if (result?.targetPlatform === 'spotify') {
-        signIn('spotify')
+        signIn('spotify', { callbackUrl: '/dashboard' })
       } else {
-        signIn('spotify')
+        signIn('spotify', { callbackUrl: '/dashboard' })
       }
       return
     }
@@ -142,9 +162,18 @@ export const Hero = () => {
     }
   }
 
+  if (isRedirecting) {
+  return (
+    <div className="flex items-center justify-center h-screen">
+      <div className="text-white text-xl">Completing conversion...</div>
+    </div>
+    )
+  }
+
+
   if (result) {
     return (
-      <div className="flex flex-col items-center justify-center text-center px-4 py-20">
+      <div className="flex flex-col items-center justify-start text-center px-4 py-20">
         <div className="max-w-4xl w-full">
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-8">
             Conversion Complete!
@@ -164,7 +193,7 @@ export const Hero = () => {
               </div>
             </div>
             
-            <div className="max-h-96 overflow-y-auto space-y-2">
+            <div className="max-h-96 overflow-y-auto space-y-2 scrollbar-hide">
               {result.tracks.map((track, index) => (
                 <div 
                   key={track.id || index}
@@ -212,7 +241,7 @@ export const Hero = () => {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center text-center px-4 py-20">
+    <div className="flex flex-col items-center justify-center text-center px-4 py-20 overflow-hidden">
       <div className="relative inline-flex items-center rounded-full px-6 py-2 text-sm text-neutral-100 font-medium bg-white/5 border border-white/20 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] mb-8 hover:border-amber-400/30 hover:text-amber-100">
         Seamlessly transfer your playlists across platforms, fast, easy, and secure. ✨
       </div>
